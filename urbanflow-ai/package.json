@@ -5,8 +5,11 @@
   "description": "UrbanFlow AI — protótipo funcional de app cívico para registro de ocorrências urbanas com IA.",
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^1.21.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-leaflet": "^4.2.1",
     "react-scripts": "5.0.1"
   },
   "scripts": {

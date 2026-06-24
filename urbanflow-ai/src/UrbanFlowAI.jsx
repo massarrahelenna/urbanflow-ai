@@ -1,24 +1,16 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
+import { Home, MapPin, ClipboardList, User } from "lucide-react";
 import "./App.css";
+import { supabase } from "./supabaseClient";
+import AuthScreen from "./AuthScreen";
+import "./leafletFix.js";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 
 /* ====================================================================
-   UrbanFlow AI — Protótipo funcional (React, mobile-first)
-   ------------------------------------------------------------------
-   Versão com className + App.css (em vez de inline styles).
-   Cores que dependem de DADO (tipo de problema, criticidade, pins do
-   mapa) continuam inline, pois não dá para "fixar" no CSS — elas
-   variam por ocorrência. Tudo o que é layout/estrutura fixa está
-   em App.css.
+   UrbanFlow AI — versão integrada ao Supabase (dados reais)
    ==================================================================== */
 
-const NAVY = "#0B1F3F";
 const ORANGE = "#F2641A";
-
-const CRITICALITY_COLOR = {
-  baixa: { bg: "#E6F6EA", fg: "#16A34A" },
-  media: { bg: "#FEF3E0", fg: "#D97706" },
-  alta: { bg: "#FCE8E6", fg: "#DC2626" },
-};
 
 const TYPE_META = {
   buraco: { label: "Buraco", icon: "⚠", color: "#D4500F" },
@@ -29,57 +21,30 @@ const TYPE_META = {
   lixo: { label: "Lixo acumulado", icon: "✦", color: "#92400E" },
 };
 
-// ---------------------------------------------------------------------
-// MOCK DATA
-// ---------------------------------------------------------------------
-const MOCK_STATS = {
-  buracos: 128,
-  semaforos: 32,
-  alagamentos: 18,
-  calcadas: 46,
-};
-
-const MOCK_OCORRENCIAS = [
-  {
-    id: "UF-1018", tipo: "buraco", titulo: "Buraco na via", bairro: "Centro",
-    criticidade: "alta", data: "16/05/2025", hora: "09:12", distancia: "120 m",
-    lat: 38, lng: 46, foto: true,
-    descricao: "Buraco grande na pista, próximo ao cruzamento.",
-  },
-  {
-    id: "UF-1019", tipo: "semaforo", titulo: "Semáforo apagado", bairro: "Jardim América",
-    criticidade: "media", data: "16/05/2025", hora: "08:40", distancia: "340 m",
-    lat: 22, lng: 70, foto: false,
-    descricao: "Semáforo do cruzamento principal está apagado desde ontem.",
-  },
-  {
-    id: "UF-1020", tipo: "alagamento", titulo: "Alagamento recorrente", bairro: "Vila Nova",
-    criticidade: "alta", data: "16/05/2025", hora: "07:55", distancia: "510 m",
-    lat: 64, lng: 56, foto: true,
-    descricao: "Acúmulo de água após chuva, dificulta passagem de pedestres.",
-  },
-  {
-    id: "UF-1021", tipo: "calcada", titulo: "Calçada quebrada", bairro: "Viv Centro",
-    criticidade: "baixa", data: "15/05/2025", hora: "17:30", distancia: "180 m",
-    lat: 30, lng: 30, foto: false,
-    descricao: "Trecho da calçada com piso solto, risco de queda.",
-  },
-  {
-    id: "UF-1022", tipo: "semaforo", titulo: "Semáforo intermitente", bairro: "Cambuí",
-    criticidade: "media", data: "15/05/2025", hora: "15:10", distancia: "620 m",
-    lat: 75, lng: 38, foto: false,
-    descricao: "Semáforo fica em modo amarelo intermitente o dia todo.",
-  },
-];
-
 const BAIRROS = ["Todos", "Centro", "Jardim América", "Vila Nova", "Viv Centro", "Cambuí", "Santa Cecília"];
 const TIPOS = ["Todos", ...Object.values(TYPE_META).map((t) => t.label)];
 const GRAVIDADES = ["Todas", "Baixa", "Média", "Alta"];
 
 // ---------------------------------------------------------------------
-// AI MOCK
+// Util: distância entre duas coordenadas (Haversine), em metros
 // ---------------------------------------------------------------------
-function aiAnalyze({ tipo, descricao, temFoto }) {
+function distanciaMetros(lat1, lng1, lat2, lng2) {
+  if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return null;
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+
+// ---------------------------------------------------------------------
+// AI (ainda heurística local — trocar por serviço real de IA depois)
+// ---------------------------------------------------------------------
+function aiAnalyze({ tipo, descricao, temFoto, duplicatasCount = 0 }) {
   const tipoDetectado = tipo || "buraco";
   const texto = (descricao || "").toLowerCase();
   let criticidade = "baixa";
@@ -93,24 +58,37 @@ function aiAnalyze({ tipo, descricao, temFoto }) {
     criticidade = "media";
   }
 
-  const duplicatas = MOCK_OCORRENCIAS.filter(
-    (o) => o.tipo === tipoDetectado && parseInt(o.distancia) < 150
-  );
-
   const resumo = `Ocorrência classificada como "${TYPE_META[tipoDetectado]?.label || tipoDetectado}", criticidade ${criticidade}. ${
     descricao ? `Relato do cidadão: "${descricao.slice(0, 120)}${descricao.length > 120 ? "…" : ""}".` : "Sem descrição adicional."
-  } ${duplicatas.length > 0 ? `Atenção: ${duplicatas.length} ocorrência(s) semelhante(s) já registrada(s) nas proximidades.` : "Nenhuma duplicata identificada nas proximidades."} Recomenda-se encaminhamento ao órgão responsável para vistoria.`;
+  } ${duplicatasCount > 0 ? `Atenção: ${duplicatasCount} ocorrência(s) semelhante(s) já registrada(s) nas proximidades.` : "Nenhuma duplicata identificada nas proximidades."} Recomenda-se encaminhamento ao órgão responsável para vistoria.`;
 
-  return { tipoDetectado, criticidade, duplicatas, resumo };
-}
-
-function generateProtocol() {
-  const n = 1000 + Math.floor(Math.random() * 9000);
-  return `#UF-${n}`;
+  return { tipoDetectado, criticidade, resumo };
 }
 
 function cap(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
+// ---------------------------------------------------------------------
+// Hook: localização real do usuário
+// ---------------------------------------------------------------------
+function useUserLocation() {
+  const [location, setLocation] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setError("Geolocalização não suportada neste navegador.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => setError(err.message),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, []);
+
+  return { location, error };
 }
 
 // ---------------------------------------------------------------------
@@ -119,15 +97,6 @@ function cap(s) {
 function PhoneFrame({ children }) {
   return (
     <div className="phoneFrame">
-      <div className="notch" />
-      <div className="statusBar">
-        <span>9:41</span>
-        <span className="statusBarIcons">
-          <span>•••</span>
-          <span>📶</span>
-          <span>🔋</span>
-        </span>
-      </div>
       <div className="phoneScreen">{children}</div>
     </div>
   );
@@ -149,10 +118,10 @@ function TopBar({ title, onBack, right }) {
 
 function BottomNav({ active, onNavigate }) {
   const items = [
-    { key: "home", label: "Início", icon: "⌂" },
-    { key: "mapa", label: "Mapa", icon: "📍" },
-    { key: "ocorrencias", label: "Ocorrências", icon: "▤" },
-    { key: "perfil", label: "Perfil", icon: "◐" },
+    { key: "home", label: "Início", icon: <Home size={20} /> },
+    { key: "mapa", label: "Mapa", icon: <MapPin size={20} /> },
+    { key: "ocorrencias", label: "Ocorrências", icon: <ClipboardList size={20} /> },
+    { key: "perfil", label: "Perfil", icon: <User size={20} /> },
   ];
   return (
     <div className="bottomNav">
@@ -189,48 +158,40 @@ function Pill({ children, tone = "default" }) {
 }
 
 // ---------------------------------------------------------------------
-// MINI MAP (SVG mockado)
+// MAPA REAL (Leaflet + OpenStreetMap)
 // ---------------------------------------------------------------------
-function MiniMap({ pins = [], onPinClick, selectedId, height = 230, showUserDot = true }) {
+function RealMap({ pins = [], onPinClick, height = 230, userLocation }) {
+  const fallbackCenter = [-15.7801, -47.9292]; // usado só se a geolocalização falhar
+  const center = userLocation ? [userLocation.lat, userLocation.lng] : fallbackCenter;
+
   return (
     <div className="mapBox" style={{ height }}>
-      <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-        <rect width="100" height="100" fill="#EAEDF1" />
-        {[15, 35, 55, 75].map((y) => (
-          <line key={"h" + y} x1="0" y1={y} x2="100" y2={y} stroke="#D7DCE3" strokeWidth="0.6" />
-        ))}
-        {[20, 45, 70].map((x) => (
-          <line key={"v" + x} x1={x} y1="0" x2={x} y2="100" stroke="#D7DCE3" strokeWidth="0.6" />
-        ))}
-        <path d="M0,60 Q40,40 100,55" stroke="#C3D6EE" strokeWidth="3" fill="none" />
-        {showUserDot && <circle cx="50" cy="48" r="2.4" fill={ORANGE} stroke="white" strokeWidth="1" />}
-      </svg>
-      {pins.map((p) => {
-        const meta = TYPE_META[p.tipo];
-        const isSel = selectedId === p.id;
-        return (
-          <button
-            key={p.id}
-            onClick={() => onPinClick && onPinClick(p)}
-            className="mapPin"
-            style={{
-              left: `${p.lng}%`,
-              top: `${p.lat}%`,
-              background: meta.color,
-              transform: `translate(-50%, -100%) scale(${isSel ? 1.25 : 1})`,
-              boxShadow: isSel ? `0 0 0 4px ${meta.color}33` : "none",
-            }}
-            aria-label={meta.label}
-            title={meta.label}
-          >
-            {meta.icon}
-          </button>
-        );
-      })}
-      <div className="mapControls">
-        <div className="mapCtrlBtn">⊕</div>
-        <div className="mapCtrlBtn">▣</div>
-      </div>
+      <MapContainer center={center} zoom={15} style={{ width: "100%", height: "100%" }} scrollWheelZoom={true}>
+        <TileLayer
+          attribution='&copy; OpenStreetMap contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        {userLocation && (
+          <Marker position={[userLocation.lat, userLocation.lng]}>
+            <Popup>Você está aqui</Popup>
+          </Marker>
+        )}
+        {pins
+          .filter((p) => p.latReal != null && p.lngReal != null)
+          .map((p) => (
+            <Marker
+              key={p.id}
+              position={[p.latReal, p.lngReal]}
+              eventHandlers={{ click: () => onPinClick && onPinClick(p) }}
+            >
+              <Popup>
+                <strong>{p.titulo}</strong>
+                <br />
+                {p.bairro || "Sem bairro informado"}
+              </Popup>
+            </Marker>
+          ))}
+      </MapContainer>
     </div>
   );
 }
@@ -239,6 +200,24 @@ function MiniMap({ pins = [], onPinClick, selectedId, height = 230, showUserDot 
 // SCREEN 1 — HOME
 // ---------------------------------------------------------------------
 function HomeScreen({ onNavigate }) {
+  const [stats, setStats] = useState({ buraco: 0, semaforo: 0, alagamento: 0, calcada: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function carregarStats() {
+      const { data, error } = await supabase.from("ocorrencias").select("tipo");
+      if (!error && data) {
+        const counts = { buraco: 0, semaforo: 0, alagamento: 0, calcada: 0 };
+        data.forEach((o) => {
+          if (counts[o.tipo] !== undefined) counts[o.tipo] += 1;
+        });
+        setStats(counts);
+      }
+      setLoading(false);
+    }
+    carregarStats();
+  }, []);
+
   return (
     <>
       <div className="heroSection">
@@ -268,14 +247,14 @@ function HomeScreen({ onNavigate }) {
       <div className="bodySection">
         <div className="sectionHeaderRow">
           <span className="sectionTitle">Panorama da cidade</span>
-          <span className="sectionHeaderMuted">Hoje ▾</span>
+          <span className="sectionHeaderMuted">{loading ? "Carregando..." : "Atual"}</span>
         </div>
 
         <div className="statGrid">
-          <StatCard icon="⚠" value={MOCK_STATS.buracos} label="Buracos" sublabel="reportados hoje" color={ORANGE} />
-          <StatCard icon="⛟" value={MOCK_STATS.semaforos} label="Semáforos" sublabel="com problema" color="#D97706" />
-          <StatCard icon="≈" value={MOCK_STATS.alagamentos} label="Alagamentos" sublabel="registrados hoje" color="#2563EB" />
-          <StatCard icon="▦" value={MOCK_STATS.calcadas} label="Calçadas" sublabel="danificadas" color="#15803D" />
+          <StatCard icon="⚠" value={stats.buraco} label="Buracos" sublabel="reportados" color={ORANGE} />
+          <StatCard icon="⛟" value={stats.semaforo} label="Semáforos" sublabel="com problema" color="#D97706" />
+          <StatCard icon="≈" value={stats.alagamento} label="Alagamentos" sublabel="registrados" color="#2563EB" />
+          <StatCard icon="▦" value={stats.calcada} label="Calçadas" sublabel="danificadas" color="#15803D" />
         </div>
       </div>
 
@@ -287,7 +266,16 @@ function HomeScreen({ onNavigate }) {
 // ---------------------------------------------------------------------
 // SCREEN 2 — REGISTRAR OCORRÊNCIA
 // ---------------------------------------------------------------------
-function RegistrarScreen({ onNavigate, onSubmit }) {
+function Field({ label, children }) {
+  return (
+    <div className="field">
+      {label && <div className="fieldLabel">{label}</div>}
+      {children}
+    </div>
+  );
+}
+
+function RegistrarScreen({ onNavigate, onSubmit, user }) {
   const tipos = [
     { key: "buraco", label: "Buraco" },
     { key: "semaforo", label: "Semáforo defeituoso" },
@@ -301,21 +289,96 @@ function RegistrarScreen({ onNavigate, onSubmit }) {
   const [tipoOpen, setTipoOpen] = useState(false);
   const [descricao, setDescricao] = useState("");
   const [recorrencia, setRecorrencia] = useState("");
-  const [foto, setFoto] = useState(false);
+  const [file, setFile] = useState(null);
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState("");
   const fileInputRef = useRef(null);
 
-  const today = "16/05/2025";
-  const now = "09:41";
+  const { location, error: locError } = useUserLocation();
+
+  const agora = new Date();
+  const today = agora.toLocaleDateString("pt-BR");
+  const now = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
   const tipoLabel = tipos.find((t) => t.key === tipo)?.label;
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!tipo) {
       setTipoOpen(true);
       return;
     }
-    const analysis = aiAnalyze({ tipo, descricao, temFoto: foto });
-    onSubmit({ tipo, descricao, recorrencia, foto, data: today, hora: now, analysis });
+    setErro("");
+    setEnviando(true);
+
+    try {
+      let foto_url = null;
+
+      if (file) {
+        const nomeArquivo = `${user.id}/${Date.now()}-${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("ocorrencias-fotos")
+          .upload(nomeArquivo, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from("ocorrencias-fotos")
+          .getPublicUrl(nomeArquivo);
+
+        foto_url = urlData.publicUrl;
+      }
+
+      // Verifica duplicatas próximas (mesmo tipo, raio de 150m) antes de classificar
+      let duplicatasCount = 0;
+      if (location) {
+        const { data: proximas } = await supabase
+          .from("ocorrencias")
+          .select("lat,lng,tipo")
+          .eq("tipo", tipo);
+
+        if (proximas) {
+          duplicatasCount = proximas.filter((o) => {
+            const d = distanciaMetros(location.lat, location.lng, o.lat, o.lng);
+            return d != null && d < 150;
+          }).length;
+        }
+      }
+
+      const analysis = aiAnalyze({ tipo, descricao, temFoto: !!file, duplicatasCount });
+
+      const { data, error: insertError } = await supabase
+        .from("ocorrencias")
+        .insert({
+          tipo,
+          titulo: tipoLabel,
+          descricao,
+          recorrencia,
+          foto_url,
+          lat: location?.lat ?? null,
+          lng: location?.lng ?? null,
+          criticidade: analysis.criticidade,
+          resumo_ia: analysis.resumo,
+          status: "classificada",
+          user_id: user.id,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      onSubmit({
+        ...data,
+        protocolo: `#UF-${data.id.slice(0, 8).toUpperCase()}`,
+        analysis,
+        data: today,
+        hora: now,
+      });
+    } catch (err) {
+      console.error(err);
+      setErro("Erro ao enviar ocorrência: " + err.message);
+    } finally {
+      setEnviando(false);
+    }
   }
 
   return (
@@ -323,7 +386,11 @@ function RegistrarScreen({ onNavigate, onSubmit }) {
       <TopBar title="Registrar ocorrência" onBack={() => onNavigate("home")} />
       <div className="bodySection bodySection--withTabBar">
         <Field label="Geolocalização exata">
-          <MiniMap pins={[]} height={140} />
+          <RealMap userLocation={location} height={140} />
+          {locError && <p style={{ fontSize: 12, color: "#DC2626", marginTop: 6 }}>{locError}</p>}
+          {!location && !locError && (
+            <p style={{ fontSize: 12, color: "#6B7280", marginTop: 6 }}>Obtendo sua localização...</p>
+          )}
         </Field>
 
         <Field label="Tipo de problema">
@@ -360,14 +427,14 @@ function RegistrarScreen({ onNavigate, onSubmit }) {
             type="file"
             accept="image/*,video/*"
             style={{ display: "none" }}
-            onChange={() => setFoto(true)}
+            onChange={(e) => setFile(e.target.files[0])}
           />
           <button className="uploadBox" onClick={() => fileInputRef.current?.click()}>
-            <div className="uploadIcon">{foto ? "✅" : "📷"}</div>
+            <div className="uploadIcon">{file ? "✅" : "📷"}</div>
             <div className="uploadTextWrap">
-              <div className="uploadTitle">{foto ? "Imagem adicionada" : "Enviar foto/vídeo"}</div>
+              <div className="uploadTitle">{file ? file.name : "Enviar foto/vídeo"}</div>
               <div className="uploadSubtitle">
-                {foto ? "A IA vai analisar o conteúdo enviado" : "Adicione uma imagem ou vídeo para ajudar na análise"}
+                {file ? "A IA vai analisar o conteúdo enviado" : "Adicione uma imagem ou vídeo para ajudar na análise"}
               </div>
             </div>
           </button>
@@ -402,42 +469,69 @@ function RegistrarScreen({ onNavigate, onSubmit }) {
           <div className="charCount">{descricao.length}/500</div>
         </Field>
 
-        <button className="primaryBtnFull" onClick={handleSubmit}>
-          ➤ Enviar ocorrência
+        {erro && <p style={{ color: "#DC2626", fontSize: 13, marginBottom: 10 }}>{erro}</p>}
+
+        <button className="primaryBtnFull" onClick={handleSubmit} disabled={enviando}>
+          {enviando ? "Enviando..." : "➤ Enviar ocorrência"}
         </button>
       </div>
     </>
   );
 }
 
-function Field({ label, children }) {
-  return (
-    <div className="field">
-      {label && <div className="fieldLabel">{label}</div>}
-      {children}
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------
-// SCREEN 3 — MAPA DE OCORRÊNCIAS
+// SCREEN 3 — MAPA DE OCORRÊNCIAS (dados reais do Supabase)
 // ---------------------------------------------------------------------
 function MapaScreen({ onNavigate }) {
   const [filtroTipo, setFiltroTipo] = useState("Todos");
   const [filtroGravidade, setFiltroGravidade] = useState("Todas");
   const [filtroBairro, setFiltroBairro] = useState("Todos");
-  const [selected, setSelected] = useState(MOCK_OCORRENCIAS[0]);
+  const [ocorrencias, setOcorrencias] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState("");
+
+  const { location } = useUserLocation();
+
+  useEffect(() => {
+    async function carregar() {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("ocorrencias")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setErro("Erro ao carregar ocorrências: " + error.message);
+      } else {
+        const mapeadas = (data || []).map((o) => ({
+          ...o,
+          latReal: o.lat,
+          lngReal: o.lng,
+        }));
+        setOcorrencias(mapeadas);
+        if (mapeadas.length > 0) setSelected(mapeadas[0]);
+      }
+      setLoading(false);
+    }
+    carregar();
+  }, []);
 
   const filtered = useMemo(() => {
-    return MOCK_OCORRENCIAS.filter((o) => {
-      const tipoOk = filtroTipo === "Todos" || TYPE_META[o.tipo].label === filtroTipo;
+    return ocorrencias.filter((o) => {
+      const tipoOk = filtroTipo === "Todos" || TYPE_META[o.tipo]?.label === filtroTipo;
       const gravOk =
         filtroGravidade === "Todas" ||
         o.criticidade === filtroGravidade.toLowerCase().replace("é", "e");
       const bairroOk = filtroBairro === "Todos" || o.bairro === filtroBairro;
       return tipoOk && gravOk && bairroOk;
     });
-  }, [filtroTipo, filtroGravidade, filtroBairro]);
+  }, [ocorrencias, filtroTipo, filtroGravidade, filtroBairro]);
+
+  const distanciaSelecionada =
+    selected && location
+      ? distanciaMetros(location.lat, location.lng, selected.lat, selected.lng)
+      : null;
 
   return (
     <>
@@ -453,23 +547,37 @@ function MapaScreen({ onNavigate }) {
         <FilterChip label="Bairro" value={filtroBairro} options={BAIRROS} onChange={setFiltroBairro} />
       </div>
 
-      <MiniMap pins={filtered} onPinClick={setSelected} selectedId={selected?.id} height={260} />
+      <RealMap pins={filtered} onPinClick={setSelected} userLocation={location} height={260} />
 
-      {selected && (
+      {loading && <p style={{ textAlign: "center", padding: 16, color: "#6B7280" }}>Carregando ocorrências...</p>}
+      {erro && <p style={{ textAlign: "center", padding: 16, color: "#DC2626" }}>{erro}</p>}
+      {!loading && !erro && filtered.length === 0 && (
+        <p style={{ textAlign: "center", padding: 16, color: "#6B7280" }}>Nenhuma ocorrência encontrada.</p>
+      )}
+
+      {selected && filtered.includes(selected) && (
         <div className="occCard">
-          <div className="occCardPhoto">{selected.foto ? "🖼" : "—"}</div>
+          <div className="occCardPhoto">
+            {selected.foto_url ? (
+              <img src={selected.foto_url} alt={selected.titulo} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 10 }} />
+            ) : (
+              "—"
+            )}
+          </div>
           <div style={{ flex: 1 }}>
             <div className="occCardHeader">
               <span className="occCardTitle">{selected.titulo}</span>
               <span className="occCardChevron">›</span>
             </div>
-            <div className="occCardBairro">Bairro: {selected.bairro}</div>
+            <div className="occCardBairro">Bairro: {selected.bairro || "Não informado"}</div>
             <div className="occCardCritRow">
               <span className="occCardCritLabel">Criticidade:</span>
               <Pill tone={selected.criticidade}>{cap(selected.criticidade)}</Pill>
             </div>
             <div className="occCardMeta">
-              {selected.data} • {selected.hora} &nbsp;&nbsp;📍 {selected.distancia}
+              {new Date(selected.created_at).toLocaleDateString("pt-BR")} •{" "}
+              {new Date(selected.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              {distanciaSelecionada != null && <> &nbsp;&nbsp;📍 {distanciaSelecionada} m</>}
             </div>
           </div>
         </div>
@@ -526,14 +634,14 @@ function ConfirmacaoScreen({ registro, onNavigate }) {
     );
   }
 
-  const { protocolo, analysis, data, hora } = registro;
+  const { protocolo, analysis, data, hora, status } = registro;
   const crit = analysis.criticidade;
 
   const steps = [
     { key: "registrada", label: "Registrada", done: true, desc: "Ocorrência recebida com sucesso.", time: `${data} • ${hora}` },
-    { key: "classificada", label: "Classificada", done: false, current: true, desc: "Em análise pela equipe técnica." },
-    { key: "encaminhada", label: "Encaminhada", done: false, desc: "Será encaminhada ao órgão responsável." },
-    { key: "resolvida", label: "Resolvida", done: false, desc: "Aguardando resolução do problema." },
+    { key: "classificada", label: "Classificada", done: status !== "classificada", current: status === "classificada", desc: "Em análise pela equipe técnica." },
+    { key: "encaminhada", label: "Encaminhada", done: status === "encaminhada" || status === "resolvida", current: status === "encaminhada", desc: "Será encaminhada ao órgão responsável." },
+    { key: "resolvida", label: "Resolvida", done: status === "resolvida", current: status === "resolvida", desc: "Aguardando resolução do problema." },
   ];
 
   return (
@@ -601,24 +709,56 @@ function SummaryRow({ label, value, valueNode, bold, last }) {
 }
 
 // ---------------------------------------------------------------------
-// SCREEN 5 — PERFIL DO USUÁRIO
+// SCREEN 5 — PERFIL DO USUÁRIO (dados reais: auth + tabela profiles)
 // ---------------------------------------------------------------------
-const MOCK_USER = {
-  nome: "Marina Souza",
-  email: "marina.souza@email.com",
-  telefone: "(62) 99876-5432",
-  endereco: "Rua das Acácias, 245 — Centro",
-  bairro: "Centro",
-};
-
-function ProfileScreen({ onNavigate }) {
-  const [user, setUser] = useState(MOCK_USER);
+function ProfileScreen({ onNavigate, user }) {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [editingField, setEditingField] = useState(null);
   const [draft, setDraft] = useState("");
   const [toast, setToast] = useState("");
   const [notifPush, setNotifPush] = useState(true);
   const [notifEmail, setNotifEmail] = useState(false);
   const [notifAtualizacoes, setNotifAtualizacoes] = useState(true);
+  const [totalRegistradas, setTotalRegistradas] = useState(0);
+  const [totalResolvidas, setTotalResolvidas] = useState(0);
+
+  useEffect(() => {
+    async function carregar() {
+      setLoading(true);
+
+      let { data: prof, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      // Se ainda não existe um perfil para esse usuário, cria um vazio
+      if (!prof && !error) {
+        const { data: novoProf } = await supabase
+          .from("profiles")
+          .insert({ id: user.id, nome: user.email.split("@")[0] })
+          .select()
+          .single();
+        prof = novoProf;
+      }
+
+      setProfile(prof);
+
+      const { data: ocs } = await supabase
+        .from("ocorrencias")
+        .select("status")
+        .eq("user_id", user.id);
+
+      if (ocs) {
+        setTotalRegistradas(ocs.length);
+        setTotalResolvidas(ocs.filter((o) => o.status === "resolvida").length);
+      }
+
+      setLoading(false);
+    }
+    carregar();
+  }, [user.id]);
 
   function showToast(msg) {
     setToast(msg);
@@ -628,50 +768,72 @@ function ProfileScreen({ onNavigate }) {
 
   function startEdit(field) {
     setEditingField(field);
-    setDraft(user[field]);
+    setDraft(profile?.[field] || "");
   }
 
-  function saveEdit(field) {
-    setUser((u) => ({ ...u, [field]: draft }));
+  async function saveEdit(field) {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ [field]: draft })
+      .eq("id", user.id);
+
+    if (error) {
+      showToast("Erro ao salvar: " + error.message);
+    } else {
+      setProfile((p) => ({ ...p, [field]: draft }));
+      showToast("Dado atualizado com sucesso.");
+    }
     setEditingField(null);
-    showToast("Dado atualizado com sucesso.");
   }
 
   function cancelEdit() {
     setEditingField(null);
   }
 
-  const initials = user.nome
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    showToast("Sessão encerrada.");
+    setTimeout(() => onNavigate("home"), 500);
+  }
+
+  if (loading) {
+    return (
+      <>
+        <div className="bodySection">Carregando perfil...</div>
+        <BottomNav active="perfil" onNavigate={(k) => onNavigate(k === "ocorrencias" ? "mapa" : k)} />
+      </>
+    );
+  }
+
+  const nomeExibido = profile?.nome || user.email;
+  const initials = nomeExibido
     .split(" ")
     .map((p) => p[0])
     .slice(0, 2)
     .join("")
     .toUpperCase();
 
-  const ocorrenciasDoUsuario = MOCK_OCORRENCIAS.length;
-  const resolvidas = 4;
-
   return (
     <>
       <div className="profileHeader">
         <div className="profileAvatar">{initials}</div>
         <div>
-          <div className="profileHeaderName">{user.nome}</div>
-          <div className="profileHeaderMeta">{user.bairro} • membro desde 2024</div>
+          <div className="profileHeaderName">{nomeExibido}</div>
+          <div className="profileHeaderMeta">{profile?.bairro || "Bairro não informado"}</div>
         </div>
       </div>
 
       <div className="profileStatsRow">
         <div className="profileStatBox">
-          <div className="profileStatValue">{ocorrenciasDoUsuario}</div>
+          <div className="profileStatValue">{totalRegistradas}</div>
           <div className="profileStatLabel">Registradas</div>
         </div>
         <div className="profileStatBox">
-          <div className="profileStatValue">{resolvidas}</div>
+          <div className="profileStatValue">{totalResolvidas}</div>
           <div className="profileStatLabel">Resolvidas</div>
         </div>
         <div className="profileStatBox">
-          <div className="profileStatValue">128</div>
+          <div className="profileStatValue">{totalRegistradas * 10}</div>
           <div className="profileStatLabel">Pontos cívicos</div>
         </div>
       </div>
@@ -683,7 +845,7 @@ function ProfileScreen({ onNavigate }) {
             icon="◐"
             label="Nome completo"
             field="nome"
-            value={user.nome}
+            value={profile?.nome || "Adicionar nome"}
             editing={editingField === "nome"}
             draft={draft}
             onDraftChange={setDraft}
@@ -691,24 +853,18 @@ function ProfileScreen({ onNavigate }) {
             onSave={saveEdit}
             onCancel={cancelEdit}
           />
-          <ProfileField
-            icon="✉"
-            label="E-mail"
-            field="email"
-            value={user.email}
-            editing={editingField === "email"}
-            draft={draft}
-            onDraftChange={setDraft}
-            onStart={startEdit}
-            onSave={saveEdit}
-            onCancel={cancelEdit}
-            type="email"
-          />
+          <div className="profileRow" style={{ cursor: "default" }}>
+            <div className="profileRowIcon">✉</div>
+            <div className="profileRowBody">
+              <div className="profileRowLabel">E-mail</div>
+              <div className="profileRowValue">{user.email}</div>
+            </div>
+          </div>
           <ProfileField
             icon="☏"
             label="Telefone"
             field="telefone"
-            value={user.telefone}
+            value={profile?.telefone || "Adicionar telefone"}
             editing={editingField === "telefone"}
             draft={draft}
             onDraftChange={setDraft}
@@ -720,8 +876,20 @@ function ProfileScreen({ onNavigate }) {
             icon="⌂"
             label="Endereço"
             field="endereco"
-            value={user.endereco}
+            value={profile?.endereco || "Adicionar endereço"}
             editing={editingField === "endereco"}
+            draft={draft}
+            onDraftChange={setDraft}
+            onStart={startEdit}
+            onSave={saveEdit}
+            onCancel={cancelEdit}
+          />
+          <ProfileField
+            icon="📍"
+            label="Bairro"
+            field="bairro"
+            value={profile?.bairro || "Adicionar bairro"}
+            editing={editingField === "bairro"}
             draft={draft}
             onDraftChange={setDraft}
             onStart={startEdit}
@@ -754,60 +922,32 @@ function ProfileScreen({ onNavigate }) {
 
         <div className="profileSectionLabel">Conta</div>
         <div className="profileGroup">
-          <button
-            className="profileRow"
-            onClick={() => showToast("Em breve: tela de alteração de senha.")}
-          >
+          <button className="profileRow" onClick={() => showToast("Em breve: tela de alteração de senha.")}>
             <div className="profileRowIcon">⚿</div>
-            <div className="profileRowBody">
-              <div className="profileRowValue">Alterar senha</div>
-            </div>
+            <div className="profileRowBody"><div className="profileRowValue">Alterar senha</div></div>
             <div className="profileRowChevron">›</div>
           </button>
-          <button
-            className="profileRow"
-            onClick={() => showToast("Em breve: privacidade e segurança.")}
-          >
+          <button className="profileRow" onClick={() => showToast("Em breve: privacidade e segurança.")}>
             <div className="profileRowIcon">⚷</div>
-            <div className="profileRowBody">
-              <div className="profileRowValue">Privacidade e segurança</div>
-            </div>
+            <div className="profileRowBody"><div className="profileRowValue">Privacidade e segurança</div></div>
             <div className="profileRowChevron">›</div>
           </button>
-          <button
-            className="profileRow"
-            onClick={() => showToast("Em breve: central de ajuda.")}
-          >
+          <button className="profileRow" onClick={() => showToast("Em breve: central de ajuda.")}>
             <div className="profileRowIcon">?</div>
-            <div className="profileRowBody">
-              <div className="profileRowValue">Ajuda e suporte</div>
-            </div>
+            <div className="profileRowBody"><div className="profileRowValue">Ajuda e suporte</div></div>
             <div className="profileRowChevron">›</div>
           </button>
-          <button
-            className="profileRow"
-            onClick={() => showToast("UrbanFlow AI — versão 1.0.0 (protótipo).")}
-          >
+          <button className="profileRow" onClick={() => showToast("UrbanFlow AI — versão 1.0.0.")}>
             <div className="profileRowIcon">ℹ</div>
-            <div className="profileRowBody">
-              <div className="profileRowValue">Sobre o app</div>
-            </div>
+            <div className="profileRowBody"><div className="profileRowValue">Sobre o app</div></div>
             <div className="profileRowChevron">›</div>
           </button>
         </div>
 
         <div className="profileGroup" style={{ marginTop: 14 }}>
-          <button
-            className="profileRow profileRowDanger"
-            onClick={() => {
-              showToast("Sessão encerrada.");
-              setTimeout(() => onNavigate("home"), 700);
-            }}
-          >
+          <button className="profileRow profileRowDanger" onClick={handleLogout}>
             <div className="profileRowIcon">⏻</div>
-            <div className="profileRowBody">
-              <div className="profileRowValue">Sair</div>
-            </div>
+            <div className="profileRowBody"><div className="profileRowValue">Sair</div></div>
           </button>
         </div>
 
@@ -881,11 +1021,39 @@ function ProfileToggle({ label, desc, checked, onToggle }) {
 export default function UrbanFlowAIApp() {
   const [screen, setScreen] = useState("home");
   const [registro, setRegistro] = useState(null);
+  const [user, setUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setAuthChecked(true);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
 
   function handleSubmitOcorrencia(data) {
-    const protocolo = generateProtocol();
-    setRegistro({ ...data, protocolo });
+    setRegistro(data);
     setScreen("confirmacao");
+  }
+
+  if (!authChecked) {
+    return <div className="appWrapper">Carregando...</div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="appWrapper">
+        <PhoneFrame>
+          <AuthScreen onAuthSuccess={setUser} />
+        </PhoneFrame>
+      </div>
+    );
   }
 
   return (
@@ -893,10 +1061,10 @@ export default function UrbanFlowAIApp() {
       <PhoneFrame>
         {screen === "home" && <HomeScreen onNavigate={setScreen} />}
         {screen === "registrar" && (
-          <RegistrarScreen onNavigate={setScreen} onSubmit={handleSubmitOcorrencia} />
+          <RegistrarScreen onNavigate={setScreen} onSubmit={handleSubmitOcorrencia} user={user} />
         )}
         {screen === "mapa" && <MapaScreen onNavigate={setScreen} />}
-        {screen === "perfil" && <ProfileScreen onNavigate={setScreen} />}
+        {screen === "perfil" && <ProfileScreen onNavigate={setScreen} user={user} />}
         {screen === "confirmacao" && (
           <ConfirmacaoScreen registro={registro} onNavigate={setScreen} />
         )}
