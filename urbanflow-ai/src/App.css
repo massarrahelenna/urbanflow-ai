@@ -1,0 +1,1063 @@
+/* =====================================================================
+   UrbanFlow AI — estilos globais
+   ---------------------------------------------------------------------
+   Cores dinâmicas (tipo de problema, criticidade, pins do mapa) seguem
+   sendo aplicadas via inline style no JSX, pois dependem de dados.
+   Tudo o que é estrutura/layout fixo está aqui.
+   ===================================================================== */
+
+:root {
+  --navy: #0B1F3F;
+  --navy-light: #13294F;
+  --orange: #F2641A;
+  --orange-dark: #D4500F;
+  --bg: #F4F5F7;
+  --border: #E4E6EA;
+  --text-muted: #6B7280;
+  --success: #16A34A;
+  --warning: #D97706;
+  --danger: #DC2626;
+  --info-bg: #EFF3F9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.appWrapper {
+  min-height: 100vh;
+  background: #EDEFF2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Inter', 'Segoe UI', Helvetica, Arial, sans-serif;
+  padding: 24px;
+}
+
+.phoneFrame {
+  width: 380px;
+  height: 800px;
+  background: black;
+  border-radius: 44px;
+  padding: 10px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  position: relative;
+}
+
+.notch {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 22px;
+  background: black;
+  border-radius: 14px;
+  z-index: 5;
+}
+
+.statusBar {
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 22px 4px;
+  background: var(--navy);
+  border-radius: 30px 30px 0 0;
+}
+
+.statusBarIcons {
+  display: flex;
+  gap: 4px;
+}
+
+.phoneScreen {
+  width: 100%;
+  height: calc(100% - 26px);
+  background: var(--bg);
+  border-radius: 0 0 30px 30px;
+  overflow-y: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- Home ---------- */
+.heroSection {
+  background: var(--navy);
+  padding: 18px 20px 26px;
+  color: white;
+}
+
+.topBarFlat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.logoRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logoMark {
+  width: 28px;
+  height: 28px;
+  background: var(--orange);
+  color: white;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.logoText {
+  font-weight: 700;
+  font-size: 18px;
+  color: white;
+}
+
+.logoTextAccent {
+  color: var(--orange);
+}
+
+.bellBtn {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  color: white;
+  cursor: pointer;
+}
+
+.heroTitle {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 18px 0 8px;
+  line-height: 1.25;
+}
+
+.heroSub {
+  font-size: 13px;
+  color: #C7CEDB;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.primaryBtn,
+.primaryBtnFull {
+  width: 100%;
+  background: var(--orange);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 14px 0;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primaryBtn {
+  margin-bottom: 10px;
+}
+
+.primaryBtnFull {
+  margin-top: 8px;
+}
+
+.secondaryBtn {
+  width: 100%;
+  background: white;
+  color: var(--navy);
+  border: none;
+  border-radius: 12px;
+  padding: 14px 0;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.linkBtn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  background: transparent;
+  border: none;
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 14px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.bodySection {
+  padding: 18px 20px;
+  flex: 1;
+}
+
+.bodySection--withTabBar {
+  padding-bottom: 100px;
+}
+
+.bodySection--withTimeline {
+  padding-bottom: 110px;
+}
+
+.sectionHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+.sectionTitle {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--navy);
+}
+
+.sectionHeaderMuted {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.statCard {
+  background: white;
+  border-radius: 14px;
+  padding: 14px;
+  border: 0.5px solid var(--border);
+}
+
+.statIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+}
+
+.statLabel {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.statValue {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.statSublabel {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ---------- Bottom nav ---------- */
+.bottomNav {
+  display: flex;
+  justify-content: space-around;
+  border-top: 0.5px solid var(--border);
+  background: white;
+  padding: 8px 0 14px;
+  position: sticky;
+  bottom: 0;
+}
+
+.bottomNavItem {
+  background: transparent;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.bottomNavItem.active {
+  color: var(--navy);
+}
+
+.bottomNavIcon {
+  font-size: 18px;
+}
+
+.bottomNavLabel {
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.bottomNavLabel.active {
+  font-weight: 600;
+}
+
+/* ---------- Top bars ---------- */
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--navy);
+  color: white;
+  padding: 14px 14px;
+}
+
+.topBarTitle {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.topBarFlatDark {
+  background: var(--navy);
+  padding: 14px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.topBarFlatDarkTitle {
+  color: white;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.iconBtn {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  width: 28px;
+}
+
+.iconBtnSpacer {
+  width: 28px;
+}
+
+.iconBtnLight {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* ---------- Form fields ---------- */
+.field {
+  margin-bottom: 18px;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--navy);
+  margin-bottom: 8px;
+}
+
+.fieldRow {
+  display: flex;
+  gap: 12px;
+}
+
+.fieldRow > .field {
+  flex: 1;
+}
+
+.selectLike {
+  width: 100%;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.selectLikePlaceholder {
+  color: var(--text-muted);
+}
+
+.selectLikeValue {
+  color: var(--navy);
+}
+
+.selectNative {
+  width: 100%;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--navy);
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 10;
+  overflow: hidden;
+}
+
+.dropdownItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: white;
+  border: none;
+  text-align: left;
+  font-size: 14px;
+  color: var(--navy);
+  cursor: pointer;
+}
+
+.uploadBox {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1.5px dashed var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  background: white;
+  cursor: pointer;
+}
+
+.uploadIcon {
+  font-size: 20px;
+}
+
+.uploadTextWrap {
+  text-align: left;
+}
+
+.uploadTitle {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--navy);
+}
+
+.uploadSubtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.inputLike {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--navy);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 80px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  resize: none;
+  font-family: inherit;
+}
+
+.charCount {
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ---------- Mapa ---------- */
+.filterRow {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  overflow-x: auto;
+}
+
+.chip {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--navy);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip.active {
+  background: var(--navy);
+  color: white;
+  border-color: var(--navy);
+}
+
+.chipDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  z-index: 20;
+  min-width: 140px;
+  overflow: hidden;
+}
+
+.chipDropdownItem {
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  background: white;
+  border: none;
+  font-size: 13px;
+  color: var(--navy);
+  cursor: pointer;
+}
+
+.mapBox {
+  width: 100%;
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  border: 0.5px solid var(--border);
+}
+
+.mapPin {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border-radius: 50% 50% 50% 0;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.mapControls {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mapCtrlBtn {
+  width: 28px;
+  height: 28px;
+  background: white;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  border: 0.5px solid var(--border);
+}
+
+.occCard {
+  display: flex;
+  gap: 12px;
+  background: white;
+  margin: 12px 16px;
+  border-radius: 14px;
+  padding: 12px;
+  border: 0.5px solid var(--border);
+}
+
+.occCardPhoto {
+  width: 64px;
+  height: 64px;
+  background: #E6E9ED;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.occCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.occCardTitle {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--navy);
+}
+
+.occCardChevron {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.occCardBairro {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.occCardCritRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.occCardCritLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.occCardMeta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+/* ---------- Pill (criticidade/status) ---------- */
+.pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.pill--default { background: var(--info-bg); color: var(--navy); }
+.pill--baixa { background: #E6F6EA; color: var(--success); }
+.pill--media { background: #FEF3E0; color: var(--warning); }
+.pill--alta { background: #FCE8E6; color: var(--danger); }
+.pill--status { background: #FEF3E0; color: var(--warning); }
+
+/* ---------- Confirmação ---------- */
+.successCircle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #E6F6EA;
+  color: var(--success);
+  font-size: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.confirmHeader {
+  text-align: center;
+  margin: 8px 0 20px;
+}
+
+.confirmHeaderTitle {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--navy);
+  margin-top: 12px;
+}
+
+.summaryCard {
+  background: white;
+  border: 0.5px solid var(--border);
+  border-radius: 14px;
+  padding: 4px 16px;
+}
+
+.summaryRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.summaryRow--last {
+  border-bottom: none;
+}
+
+.summaryLabel {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.summaryValue {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--navy);
+}
+
+.summaryValue--bold {
+  font-weight: 700;
+}
+
+.aiBox {
+  background: var(--info-bg);
+  border: 0.5px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-top: 14px;
+}
+
+.aiBoxTitle {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--navy);
+  margin-bottom: 4px;
+}
+
+.aiBoxText {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.timelineSectionTitle {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--navy);
+  margin: 20px 0 12px;
+}
+
+.timeline {
+  padding-left: 4px;
+}
+
+.timelineRow {
+  display: flex;
+  gap: 12px;
+}
+
+.timelineDotCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.timelineDot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.timelineDot--done {
+  background: var(--success);
+  border-color: var(--success);
+  color: white;
+}
+
+.timelineDot--current {
+  background: white;
+  border-color: var(--orange);
+  color: var(--orange);
+}
+
+.timelineDot--pending {
+  background: white;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.timelineLine {
+  width: 2px;
+  flex: 1;
+  background: var(--border);
+  min-height: 24px;
+}
+
+.timelineContent {
+  padding-bottom: 18px;
+}
+
+.timelineLabel {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--navy);
+}
+
+.timelineTime {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.timelineDesc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.emptyText {
+  color: var(--text-muted);
+}
+
+/* ---------- Perfil ---------- */
+.profileHeader {
+  background: var(--navy);
+  padding: 24px 20px 26px;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.profileAvatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--orange);
+  color: white;
+  font-weight: 700;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.profileHeaderName {
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.profileHeaderMeta {
+  font-size: 12px;
+  color: #C7CEDB;
+  margin-top: 2px;
+}
+
+.profileStatsRow {
+  display: flex;
+  gap: 10px;
+  padding: 16px 20px 0;
+}
+
+.profileStatBox {
+  flex: 1;
+  background: white;
+  border-radius: 12px;
+  border: 0.5px solid var(--border);
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.profileStatValue {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.profileStatLabel {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.profileSectionLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 20px 0 8px;
+}
+
+.profileGroup {
+  background: white;
+  border-radius: 14px;
+  border: 0.5px solid var(--border);
+  overflow: hidden;
+}
+
+.profileRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  background: white;
+  border: none;
+  border-bottom: 0.5px solid var(--border);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.profileRow:last-child {
+  border-bottom: none;
+}
+
+.profileRow:active {
+  background: var(--bg);
+}
+
+.profileRowIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--info-bg);
+  color: var(--navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.profileRowBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.profileRowLabel {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.profileRowValue {
+  font-size: 14px;
+  color: var(--navy);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profileRowChevron {
+  color: var(--text-muted);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.profileRowInput {
+  width: 100%;
+  border: 1px solid var(--orange);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 14px;
+  color: var(--navy);
+  font-family: inherit;
+}
+
+.profileToggleRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  background: white;
+  border: none;
+  border-bottom: 0.5px solid var(--border);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.profileToggleRow:last-child {
+  border-bottom: none;
+}
+
+.profileToggleBody {
+  flex: 1;
+}
+
+.profileToggleLabel {
+  font-size: 14px;
+  color: var(--navy);
+  font-weight: 500;
+}
+
+.profileToggleDesc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.switchTrack {
+  width: 40px;
+  height: 22px;
+  border-radius: 12px;
+  background: var(--border);
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.switchTrack.on {
+  background: var(--orange);
+}
+
+.switchThumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.15s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.switchTrack.on .switchThumb {
+  transform: translateX(18px);
+}
+
+.profileRowDanger .profileRowLabel,
+.profileRowDanger .profileRowValue {
+  color: var(--danger);
+}
+
+.profileRowDanger .profileRowIcon {
+  background: #FCE8E6;
+  color: var(--danger);
+}
+
+.profileSavedToast {
+  position: sticky;
+  bottom: 8px;
+  margin: 12px 16px 0;
+  background: var(--navy);
+  color: white;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  text-align: center;
+}
