@@ -4,11 +4,55 @@ import "./App.css";
 import { supabase } from "./supabaseClient";
 import AuthScreen from "./AuthScreen";
 import "./leafletFix.js";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 
-/* ====================================================================
-   UrbanFlow AI — versão integrada ao Supabase (dados reais)
-   ==================================================================== */
+// Busca cidade/bairro a partir de lat/lng (OpenStreetMap Nominatim, gratuito)
+async function reverseGeocode(lat, lng) {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`,
+      { headers: { "Accept-Language": "pt-BR" } }
+    );
+    const data = await res.json();
+    const addr = data.address || {};
+
+    const ufCode = addr["ISO3166-2-lvl4"] || "";
+    const isDF = ufCode === "BR-DF";
+
+    let cidade = "";
+    let bairro = "";
+
+    if (isDF) {
+      cidade = "Brasília";
+      bairro =
+        addr.city ||
+        addr.town ||
+        addr.city_district ||
+        addr.suburb ||
+        addr.neighbourhood ||
+        addr.quarter ||
+        "";
+    } else {
+      cidade = addr.city || addr.town || addr.municipality || addr.county || "";
+      bairro = addr.suburb || addr.neighbourhood || addr.quarter || addr.city_district || "";
+    }
+
+    return { cidade, bairro };
+  } catch (err) {
+    console.error("Erro no reverse geocoding:", err);
+    return { cidade: "", bairro: "" };
+  }
+}
+
+function RecenterOnLocation({ location }) {
+  const map = useMap();
+  useEffect(() => {
+    if (location) {
+      map.setView([location.lat, location.lng], map.getZoom());
+    }
+  }, [location, map]);
+  return null;
+}
 
 const ORANGE = "#F2641A";
 
@@ -25,9 +69,6 @@ const BAIRROS = ["Todos", "Centro", "Jardim América", "Vila Nova", "Viv Centro"
 const TIPOS = ["Todos", ...Object.values(TYPE_META).map((t) => t.label)];
 const GRAVIDADES = ["Todas", "Baixa", "Média", "Alta"];
 
-// ---------------------------------------------------------------------
-// Util: distância entre duas coordenadas (Haversine), em metros
-// ---------------------------------------------------------------------
 function distanciaMetros(lat1, lng1, lat2, lng2) {
   if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return null;
   const R = 6371000;
@@ -41,9 +82,6 @@ function distanciaMetros(lat1, lng1, lat2, lng2) {
   return Math.round(R * c);
 }
 
-// ---------------------------------------------------------------------
-// AI (ainda heurística local — trocar por serviço real de IA depois)
-// ---------------------------------------------------------------------
 function aiAnalyze({ tipo, descricao, temFoto, duplicatasCount = 0 }) {
   const tipoDetectado = tipo || "buraco";
   const texto = (descricao || "").toLowerCase();
@@ -69,9 +107,6 @@ function cap(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
-// ---------------------------------------------------------------------
-// Hook: localização real do usuário
-// ---------------------------------------------------------------------
 function useUserLocation() {
   const [location, setLocation] = useState(null);
   const [error, setError] = useState(null);
@@ -91,9 +126,6 @@ function useUserLocation() {
   return { location, error };
 }
 
-// ---------------------------------------------------------------------
-// SHARED UI COMPONENTS
-// ---------------------------------------------------------------------
 function PhoneFrame({ children }) {
   return (
     <div className="phoneFrame">
@@ -157,16 +189,14 @@ function Pill({ children, tone = "default" }) {
   return <span className={`pill pill--${tone}`}>{children}</span>;
 }
 
-// ---------------------------------------------------------------------
-// MAPA REAL (Leaflet + OpenStreetMap)
-// ---------------------------------------------------------------------
 function RealMap({ pins = [], onPinClick, height = 230, userLocation }) {
-  const fallbackCenter = [-15.7801, -47.9292]; // usado só se a geolocalização falhar
+  const fallbackCenter = [-15.7801, -47.9292];
   const center = userLocation ? [userLocation.lat, userLocation.lng] : fallbackCenter;
 
   return (
     <div className="mapBox" style={{ height }}>
       <MapContainer center={center} zoom={15} style={{ width: "100%", height: "100%" }} scrollWheelZoom={true}>
+        <RecenterOnLocation location={userLocation} />
         <TileLayer
           attribution='&copy; OpenStreetMap contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -205,16 +235,16 @@ function HomeScreen({ onNavigate }) {
 
   useEffect(() => {
     async function carregarStats() {
-      const { data, error } = await supabase.from("ocorrencias").select("tipo");
-      if (!error && data) {
-        const counts = { buraco: 0, semaforo: 0, alagamento: 0, calcada: 0 };
-        data.forEach((o) => {
-          if (counts[o.tipo] !== undefined) counts[o.tipo] += 1;
-        });
-        setStats(counts);
-      }
-      setLoading(false);
-    }
+  const { data, error } = await supabase.from("ocorrencias").select("tipo");
+  if (!error && data) {
+    const counts = { buraco: 0, semaforo: 0, alagamento: 0, calcada: 0, iluminacao: 0, lixo: 0 };
+    data.forEach((o) => {
+      if (counts[o.tipo] !== undefined) counts[o.tipo] += 1;
+    });
+    setStats(counts);
+  }
+  setLoading(false);
+}
     carregarStats();
   }, []);
 
@@ -255,10 +285,12 @@ function HomeScreen({ onNavigate }) {
           <StatCard icon="⛟" value={stats.semaforo} label="Semáforos" sublabel="com problema" color="#D97706" />
           <StatCard icon="≈" value={stats.alagamento} label="Alagamentos" sublabel="registrados" color="#2563EB" />
           <StatCard icon="▦" value={stats.calcada} label="Calçadas" sublabel="danificadas" color="#15803D" />
+          <StatCard icon="✦" value={stats.iluminacao} label="Iluminação" sublabel="com problema" color="#7C3AED" />
+          <StatCard icon="✦" value={stats.lixo} label="Lixo" sublabel="acumulado" color="#92400E" />
         </div>
       </div>
 
-      <BottomNav active="home" onNavigate={(k) => (k === "home" ? null : onNavigate(k === "ocorrencias" ? "mapa" : k))} />
+      <BottomNav active="home" onNavigate={(k) => onNavigate(k)} />
     </>
   );
 }
@@ -290,11 +322,22 @@ function RegistrarScreen({ onNavigate, onSubmit, user }) {
   const [descricao, setDescricao] = useState("");
   const [recorrencia, setRecorrencia] = useState("");
   const [file, setFile] = useState(null);
+  const [bairro, setBairro] = useState("");
+  const [buscandoBairro, setBuscandoBairro] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
   const fileInputRef = useRef(null);
 
   const { location, error: locError } = useUserLocation();
+
+  useEffect(() => {
+    if (!location) return;
+    setBuscandoBairro(true);
+    reverseGeocode(location.lat, location.lng).then(({ bairro: b }) => {
+      if (b) setBairro(b);
+      setBuscandoBairro(false);
+    });
+  }, [location]);
 
   const agora = new Date();
   const today = agora.toLocaleDateString("pt-BR");
@@ -328,7 +371,6 @@ function RegistrarScreen({ onNavigate, onSubmit, user }) {
         foto_url = urlData.publicUrl;
       }
 
-      // Verifica duplicatas próximas (mesmo tipo, raio de 150m) antes de classificar
       let duplicatasCount = 0;
       if (location) {
         const { data: proximas } = await supabase
@@ -352,6 +394,7 @@ function RegistrarScreen({ onNavigate, onSubmit, user }) {
           tipo,
           titulo: tipoLabel,
           descricao,
+          bairro,
           recorrencia,
           foto_url,
           lat: location?.lat ?? null,
@@ -390,6 +433,20 @@ function RegistrarScreen({ onNavigate, onSubmit, user }) {
           {locError && <p style={{ fontSize: 12, color: "#DC2626", marginTop: 6 }}>{locError}</p>}
           {!location && !locError && (
             <p style={{ fontSize: 12, color: "#6B7280", marginTop: 6 }}>Obtendo sua localização...</p>
+          )}
+        </Field>
+
+        <Field label="Bairro">
+          <input
+            className="inputLike"
+            type="text"
+            style={{ width: "100%" }}
+            placeholder="Bairro onde está o problema"
+            value={bairro}
+            onChange={(e) => setBairro(e.target.value)}
+          />
+          {buscandoBairro && (
+            <p style={{ fontSize: 11, color: "#6B7280", marginTop: 4 }}>Detectando bairro...</p>
           )}
         </Field>
 
@@ -480,7 +537,7 @@ function RegistrarScreen({ onNavigate, onSubmit, user }) {
 }
 
 // ---------------------------------------------------------------------
-// SCREEN 3 — MAPA DE OCORRÊNCIAS (dados reais do Supabase)
+// SCREEN 3 — MAPA DE OCORRÊNCIAS
 // ---------------------------------------------------------------------
 function MapaScreen({ onNavigate }) {
   const [filtroTipo, setFiltroTipo] = useState("Todos");
@@ -583,7 +640,7 @@ function MapaScreen({ onNavigate }) {
         </div>
       )}
 
-      <BottomNav active="mapa" onNavigate={(k) => onNavigate(k === "ocorrencias" ? "mapa" : k)} />
+      <BottomNav active="mapa" onNavigate={(k) => onNavigate(k)} />
     </>
   );
 }
@@ -613,6 +670,135 @@ function FilterChip({ label, value, options, onChange }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// SCREEN — MINHAS OCORRÊNCIAS (lista das ocorrências do usuário logado)
+// ---------------------------------------------------------------------
+function MinhasOcorrenciasScreen({ onNavigate, user }) {
+  const [ocorrencias, setOcorrencias] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState("");
+  const [filtroStatus, setFiltroStatus] = useState("Todos");
+
+  useEffect(() => {
+    async function carregar() {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("ocorrencias")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setErro("Erro ao carregar suas ocorrências: " + error.message);
+      } else {
+        setOcorrencias(data || []);
+      }
+      setLoading(false);
+    }
+    carregar();
+  }, [user.id]);
+
+  const statusOptions = ["Todos", "classificada", "encaminhada", "resolvida"];
+  const statusLabel = {
+    classificada: "Em análise",
+    encaminhada: "Encaminhada",
+    resolvida: "Resolvida",
+  };
+
+  const filtradas =
+    filtroStatus === "Todos"
+      ? ocorrencias
+      : ocorrencias.filter((o) => o.status === filtroStatus);
+
+  return (
+    <>
+      <TopBar title="Minhas ocorrências" onBack={() => onNavigate("home")} />
+
+      <div className="filterRow" style={{ padding: "0 16px 12px" }}>
+        {statusOptions.map((s) => (
+          <button
+            key={s}
+            className={`chip ${filtroStatus === s ? "active" : ""}`}
+            onClick={() => setFiltroStatus(s)}
+          >
+            {s === "Todos" ? "Todos" : statusLabel[s]}
+          </button>
+        ))}
+      </div>
+
+      <div className="bodySection bodySection--withTabBar" style={{ paddingTop: 0 }}>
+        {loading && <p style={{ textAlign: "center", padding: 16, color: "#6B7280" }}>Carregando...</p>}
+        {erro && <p style={{ textAlign: "center", padding: 16, color: "#DC2626" }}>{erro}</p>}
+
+        {!loading && !erro && filtradas.length === 0 && (
+          <div style={{ textAlign: "center", padding: 32 }}>
+            <p className="emptyText">
+              {ocorrencias.length === 0
+                ? "Você ainda não registrou nenhuma ocorrência."
+                : "Nenhuma ocorrência com esse status."}
+            </p>
+            {ocorrencias.length === 0 && (
+              <button className="primaryBtnFull" onClick={() => onNavigate("registrar")}>
+                Registrar ocorrência
+              </button>
+            )}
+          </div>
+        )}
+
+        {filtradas.map((o) => (
+          <button
+            key={o.id}
+            className="occCard"
+            style={{ width: "100%", textAlign: "left", marginBottom: 12, cursor: "pointer" }}
+            onClick={() =>
+              onNavigate("confirmacao", {
+                ...o,
+                protocolo: `#UF-${o.id.slice(0, 8).toUpperCase()}`,
+                analysis: { criticidade: o.criticidade, resumo: o.resumo_ia },
+                data: new Date(o.created_at).toLocaleDateString("pt-BR"),
+                hora: new Date(o.created_at).toLocaleTimeString("pt-BR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+              })
+            }
+          >
+            <div className="occCardPhoto">
+              {o.foto_url ? (
+                <img
+                  src={o.foto_url}
+                  alt={o.titulo}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 10 }}
+                />
+              ) : (
+                "—"
+              )}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div className="occCardHeader">
+                <span className="occCardTitle">{o.titulo}</span>
+                <span className="occCardChevron">›</span>
+              </div>
+              <div className="occCardBairro">Bairro: {o.bairro || "Não informado"}</div>
+              <div className="occCardCritRow">
+                <span className="occCardCritLabel">Status:</span>
+                <Pill tone="status">{statusLabel[o.status] || o.status}</Pill>
+                <Pill tone={o.criticidade}>{cap(o.criticidade)}</Pill>
+              </div>
+              <div className="occCardMeta">
+                {new Date(o.created_at).toLocaleDateString("pt-BR")} •{" "}
+                {new Date(o.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <BottomNav active="ocorrencias" onNavigate={(k) => onNavigate(k)} />
+    </>
   );
 }
 
@@ -709,7 +895,7 @@ function SummaryRow({ label, value, valueNode, bold, last }) {
 }
 
 // ---------------------------------------------------------------------
-// SCREEN 5 — PERFIL DO USUÁRIO (dados reais: auth + tabela profiles)
+// SCREEN 5 — PERFIL DO USUÁRIO
 // ---------------------------------------------------------------------
 function ProfileScreen({ onNavigate, user }) {
   const [profile, setProfile] = useState(null);
@@ -733,11 +919,16 @@ function ProfileScreen({ onNavigate, user }) {
         .eq("id", user.id)
         .maybeSingle();
 
-      // Se ainda não existe um perfil para esse usuário, cria um vazio
       if (!prof && !error) {
+        const meta = user.user_metadata || {};
         const { data: novoProf } = await supabase
           .from("profiles")
-          .insert({ id: user.id, nome: user.email.split("@")[0] })
+          .insert({
+            id: user.id,
+            nome: meta.nome || user.email.split("@")[0],
+            cidade: meta.cidade || "",
+            bairro: meta.bairro || "",
+          })
           .select()
           .single();
         prof = novoProf;
@@ -800,7 +991,7 @@ function ProfileScreen({ onNavigate, user }) {
     return (
       <>
         <div className="bodySection">Carregando perfil...</div>
-        <BottomNav active="perfil" onNavigate={(k) => onNavigate(k === "ocorrencias" ? "mapa" : k)} />
+        <BottomNav active="perfil" onNavigate={(k) => onNavigate(k)} />
       </>
     );
   }
@@ -954,7 +1145,7 @@ function ProfileScreen({ onNavigate, user }) {
         {toast && <div className="profileSavedToast">{toast}</div>}
       </div>
 
-      <BottomNav active="perfil" onNavigate={(k) => onNavigate(k === "ocorrencias" ? "mapa" : k)} />
+      <BottomNav active="perfil" onNavigate={(k) => onNavigate(k)} />
     </>
   );
 }
@@ -1042,6 +1233,13 @@ export default function UrbanFlowAIApp() {
     setScreen("confirmacao");
   }
 
+  function handleNavigate(nextScreen, payload) {
+    if (nextScreen === "confirmacao" && payload) {
+      setRegistro(payload);
+    }
+    setScreen(nextScreen);
+  }
+
   if (!authChecked) {
     return <div className="appWrapper">Carregando...</div>;
   }
@@ -1059,14 +1257,17 @@ export default function UrbanFlowAIApp() {
   return (
     <div className="appWrapper">
       <PhoneFrame>
-        {screen === "home" && <HomeScreen onNavigate={setScreen} />}
+        {screen === "home" && <HomeScreen onNavigate={handleNavigate} />}
         {screen === "registrar" && (
-          <RegistrarScreen onNavigate={setScreen} onSubmit={handleSubmitOcorrencia} user={user} />
+          <RegistrarScreen onNavigate={handleNavigate} onSubmit={handleSubmitOcorrencia} user={user} />
         )}
-        {screen === "mapa" && <MapaScreen onNavigate={setScreen} />}
-        {screen === "perfil" && <ProfileScreen onNavigate={setScreen} user={user} />}
+        {screen === "mapa" && <MapaScreen onNavigate={handleNavigate} />}
+        {screen === "ocorrencias" && (
+          <MinhasOcorrenciasScreen onNavigate={handleNavigate} user={user} />
+        )}
+        {screen === "perfil" && <ProfileScreen onNavigate={handleNavigate} user={user} />}
         {screen === "confirmacao" && (
-          <ConfirmacaoScreen registro={registro} onNavigate={setScreen} />
+          <ConfirmacaoScreen registro={registro} onNavigate={handleNavigate} />
         )}
       </PhoneFrame>
     </div>
