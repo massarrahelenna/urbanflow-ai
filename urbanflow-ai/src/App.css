@@ -25,60 +25,32 @@
 }
 
 .appWrapper {
+  width: 100%;
   min-height: 100vh;
-  background: #EDEFF2;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-family: 'Inter', 'Segoe UI', Helvetica, Arial, sans-serif;
-  padding: 24px;
+  background: #F5F6F8;
 }
 
 .phoneFrame {
-  width: 380px;
-  height: 800px;
-  background: black;
-  border-radius: 44px;
-  padding: 10px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
-  position: relative;
-}
-
-.notch {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 120px;
-  height: 22px;
-  background: black;
-  border-radius: 14px;
-  z-index: 5;
-}
-
-.statusBar {
-  color: white;
-  font-size: 12px;
-  font-weight: 600;
+  width: 100%;
+  background: #fff;
   display: flex;
-  justify-content: space-between;
-  padding: 10px 22px 4px;
-  background: var(--navy);
-  border-radius: 30px 30px 0 0;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
-.statusBarIcons {
-  display: flex;
-  gap: 4px;
+@media (min-width: 1024px) {
+  .statGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .heroTitle,
+  .heroSub {
+    max-width: 600px;
+  }
 }
 
 .phoneScreen {
-  width: 100%;
-  height: calc(100% - 26px);
-  background: var(--bg);
-  border-radius: 0 0 30px 30px;
-  overflow-y: auto;
-  position: relative;
+  flex: 1;
   display: flex;
   flex-direction: column;
 }
